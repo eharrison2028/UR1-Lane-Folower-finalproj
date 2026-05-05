@@ -8,6 +8,7 @@ using System.Collections.Specialized;
 using Emgu.CV.CvEnum;
 using Emgu.CV.Util;
 using System.IO.Ports;
+using System.Threading.Tasks;
 //using System.IO.Ports.SerialPort;
 
 
@@ -24,7 +25,7 @@ namespace CS_HW_2_Emma_Harrison
         public Form1()
         {
             InitializeComponent();
-            
+
         }
 
         private void Form1_Load_1(object sender, EventArgs e)
@@ -60,7 +61,7 @@ namespace CS_HW_2_Emma_Harrison
             _serialPort.Open();
             */
             //_serialPort.DataReceived += SerialPort_DataReceived;
-            
+
             while (_capture.IsOpened)
             {
                 //frame maintenance
@@ -82,28 +83,21 @@ namespace CS_HW_2_Emma_Harrison
                 int ypcol4 = 0;
                 int ypcol5 = 0;
 
-                int lMotorValue = 0;
-                int rMotorValue = 0;
+                bool flag = false;
 
-                //_serialPort = new SerialPort();
-                //SerialPort _serialPort = new SerialPort("COM4", 9600);
-                //_serialPort.DataBits = 8;
-                //_serialPort.Parity = Parity.None;
-                //_serialPort.StopBits = StopBits.One;
-                //_serialPort.Open();
 
                 //resize to PictureBox aspect ratio
                 int newHeight = (frame.Size.Height * pictureBox1.Size.Width) / frame.Size.Width;
                 Size newSize = new Size(pictureBox1.Size.Width, newHeight);
                 CvInvoke.Resize(frame, frame, newSize);
-               
+
                 //grayscaling and binary thresholding
                 Mat grayscale = new Mat();
                 CvInvoke.CvtColor(frame, grayscale, Emgu.CV.CvEnum.ColorConversion.Bgr2Gray);
                 var mean = CvInvoke.Mean(grayscale);
                 //Invoke(new Action(() =>
                 //{
-                 //   meanLbl.Text = $"Mean: {mean.V0}";
+                //   meanLbl.Text = $"Mean: {mean.V0}";
                 //}));
 
                 Mat binary_thresh = new Mat();
@@ -111,7 +105,7 @@ namespace CS_HW_2_Emma_Harrison
 
                 Mat hsv = new Mat();
                 CvInvoke.CvtColor(frame, hsv, Emgu.CV.CvEnum.ColorConversion.Bgr2Hsv);
-                Image<Hsv, byte> hsvImage = hsv.ToImage<Hsv, byte>();
+                Image<Hsv, byte> redhsvImage = hsv.ToImage<Hsv, byte>();
                 //175,255
 
                 Mat hsvYellow = new Mat();
@@ -154,29 +148,36 @@ namespace CS_HW_2_Emma_Harrison
                 //CvInvoke.PutText(frame, $"L: {whitePixelsLeftfifth}", new Point(10, 30), FontFace.HersheySimplex, 1.2, new MCvScalar(0, 0, 255), 2);
                 // img.ROI = Rectangle.Empty;
 
-               // 'yellow_h_min', 15)
+                // 'yellow_h_min', 15)
                 //self.declare_parameter('yellow_h_max', 40)
                 //self.declare_parameter('yellow_s_min', 80)
                 //self.declare_parameter('yellow_s_max', 255)
                 //self.declare_parameter('yellow_v_min', 100)
-                    //self.declare_parameter('yellow_v_max', 255)
+                //self.declare_parameter('yellow_v_max', 255)
 
-               // img2.ROI = new Rectangle(frame.Width / 2, frame.Height - frame.Height / 4, frame.Width / 2, frame.Height / 4);
+                // img2.ROI = new Rectangle(frame.Width / 2, frame.Height - frame.Height / 4, frame.Width / 2, frame.Height / 4);
                 wpcol2 = img2.CountNonzero()[0];
                 //Console.WriteLine($"Right ROI: {whitePixelssecondfifth}");
                 //CvInvoke.PutText(frame, $"R: {whitePixelssecondfifth}", new Point(frame.Width / 2 + 10, 30), FontFace.HersheySimplex, 1.2, new MCvScalar(0, 255, 0), 2);
                 // img2.ROI = Rectangle.Empty;
                 wpmid = col3.CountNonzero()[0];
                 wpcol4 = col4.CountNonzero()[0];
-                wpcol5 = col5.CountNonzero()[0];  
+                wpcol5 = col5.CountNonzero()[0];
                 wpcol6 = col6.CountNonzero()[0];
                 wpcol7 = col7.CountNonzero()[0];
 
-                hsvImage.ROI = new Rectangle(0, frame.Height - frame.Height / 3, frame.Width, frame.Height / 3);
-                red = hsvImage.InRange(new Hsv(0, 150, 100), new Hsv(25, 255, 255)).CountNonzero()[0];
-                CvInvoke.PutText(frame, $"Red: {red}", new Point(10, 70),FontFace.HersheySimplex, 1.2, new MCvScalar(255, 0, 255), 2);
+                Hsv redlowerLimit = new Hsv(162, 76, 102);//325, 30, 40);
+                Hsv redupperLimit = new Hsv(179, 178, 166);//360, 70, 65);
+                //345.5, 51, 47
 
-                
+                redhsvImage.ROI = new Rectangle(0, 0, frame.Width, frame.Height);
+                Image<Gray, byte> redmask = redhsvImage.InRange(redlowerLimit, redupperLimit);//.CountNonzero()[0];
+                redhsvImage.ROI = new Rectangle(0, frame.Height - frame.Height / 2, frame.Width, frame.Height);
+                Image<Gray, byte> countRed = redhsvImage.InRange(new Hsv(0, 150, 100), new Hsv(25, 255, 255));
+                red = redmask.CountNonzero()[0];//new Hsv(0, 150, 100), new Hsv(25, 255, 255)).CountNonzero()[0];
+                CvInvoke.PutText(frame, $"Red: {red}", new Point(10, 70), FontFace.HersheySimplex, 1.2, new MCvScalar(255, 0, 255), 2);
+
+
                 Hsv lowerLimit = new Hsv(24, 43, 122);
                 Hsv upperLimit = new Hsv(30, 255, 255);
 
@@ -190,11 +191,11 @@ namespace CS_HW_2_Emma_Harrison
                 Image<Gray, byte> ycol4 = yellowHSVimg.InRange(lowerLimit, upperLimit);
                 Image<Gray, byte> ycol5 = yellowHSVimg.InRange(lowerLimit, upperLimit);
 
-                ycol1.ROI = new Rectangle(0, 0, frame.Width / 5, frame.Height);
-                ycol2.ROI = new Rectangle((frame.Width) / 5, 0, frame.Width / 5, frame.Height);
-                ycol3.ROI = new Rectangle(2 * (frame.Width) / 5, 0, frame.Width / 5, frame.Height);
-                ycol4.ROI = new Rectangle(3 * (frame.Width) / 5, 0, frame.Width / 5, frame.Height);
-                ycol5.ROI = new Rectangle(4 * (frame.Width) / 5, 0, frame.Width / 5, frame.Height);
+                ycol1.ROI = new Rectangle(0, frame.Height - frame.Height / 2, frame.Width / 5, frame.Height);
+                ycol2.ROI = new Rectangle((frame.Width) / 5, frame.Height - frame.Height / 2, frame.Width / 5, frame.Height);
+                ycol3.ROI = new Rectangle(2 * (frame.Width) / 5, frame.Height - frame.Height / 2, frame.Width / 5, frame.Height);
+                ycol4.ROI = new Rectangle(3 * (frame.Width) / 5, frame.Height - frame.Height / 2, frame.Width / 5, frame.Height);
+                ycol5.ROI = new Rectangle(4 * (frame.Width) / 5, frame.Height - frame.Height / 2, frame.Width / 5, frame.Height);
 
                 yellowHSVimg.ROI = new Rectangle(0, 0, frame.Width, frame.Height);
                 yellowPixels = yellowHSVimg.CountNonzero()[0];
@@ -206,7 +207,7 @@ namespace CS_HW_2_Emma_Harrison
                 ypcol5 = ycol5.CountNonzero()[0];
 
 
-                
+
                 /*
                 CvInvoke.Rectangle(frame, img.ROI, new MCvScalar(0, 0, 255), 2);
                 CvInvoke.Rectangle(frame, img2.ROI, new MCvScalar(0, 255, 0), 2);
@@ -234,12 +235,14 @@ namespace CS_HW_2_Emma_Harrison
                 CvInvoke.Rectangle(mask, col4.ROI, new MCvScalar(0, 255, 0), 2);
                 CvInvoke.Rectangle(mask, col5.ROI, new MCvScalar(0, 0, 255), 2);
 
-                CvInvoke.Rectangle(frame, hsvImage.ROI, new MCvScalar(255,0, 255), 2);
+                CvInvoke.Rectangle(frame, redhsvImage.ROI, new MCvScalar(255, 0, 255), 2);
                 int decision = 0;
 
-                if (red > 1000)
+                if (red > 100000)
                 {
+                    flag = true;
                     decision = 0;
+                    //break;
                 }
                 else
                 {
@@ -251,9 +254,9 @@ namespace CS_HW_2_Emma_Harrison
                     // 4 -> HARD RIGHT
                     // 5 -> HARD LEFT 
                     // | col5 | col4 | col3 | col2 | col1 |
-                    if (yellowPixels < 100)
+                    if (yellowPixels < 500)
                     {
-                        decision = 0; //STOP! No line!
+                        //decision = 0; //STOP! No line!
                     }
                     else if (ypcol3 > ypcol4 && ypcol3 > ypcol2)
                     {
@@ -275,12 +278,20 @@ namespace CS_HW_2_Emma_Harrison
                     {
                         decision = 4; //turn hard left
                     }
-                                                  
+                    else
+                    {
+                        //decision = 8;
+                    }
+
                 }
 
 
-                string decisionStr;
-                decisionStr = $"L: {lMotorValue}, R: {rMotorValue}";
+                //string decisionStr;
+                //decisionStr = $"L: {lMotorValue}, R: {rMotorValue}";
+                if (flag)
+                {
+                    decision = 0;
+                }
                 _serialPort.Write(decision.ToString());
                 Thread.Sleep(50);
 
@@ -290,6 +301,10 @@ namespace CS_HW_2_Emma_Harrison
                 Bitmap bmp = frame.ToBitmap();
                 Bitmap binaryBmp = binary_thresh.ToBitmap();
                 Bitmap yellowMask = mask.ToBitmap();
+                Bitmap redMask = redmask.ToBitmap(); 
+                Mat combinedMask = new Mat();
+                CvInvoke.BitwiseOr(mask, redmask, combinedMask);
+                Bitmap comboMask = combinedMask.ToBitmap();
                 pictureBox2.Invoke(new Action(() =>
                 {
                     pictureBox2.Image = bmp;
@@ -297,7 +312,7 @@ namespace CS_HW_2_Emma_Harrison
 
                 pictureBox3.Invoke(new Action(() =>
                 {
-                    pictureBox3.Image = yellowMask;//binaryBmp;
+                    pictureBox3.Image = comboMask;//binaryBmp;
                 }));
                 // pictureBox1.Image = frame.ToBitmap();
                 img.ROI = Rectangle.Empty;
@@ -356,6 +371,16 @@ namespace CS_HW_2_Emma_Harrison
         }
 
         private void pictureBox1_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void pictureBox3_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void tableLayoutPanel2_Paint(object sender, PaintEventArgs e)
         {
 
         }
